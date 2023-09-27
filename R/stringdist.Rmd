@@ -1,0 +1,90 @@
+---
+title: "ArcDiagram"
+author: "Iain  Emsley"
+date: "2023-06-28"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+An effort to use an arc diagram to show the relative links between the Mastodon social code of conduct. 
+
+```{r cars}
+library('stringdist')
+library('ggplot2')
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+codes_df = read.csv("~/Desktop/noracism.csv")
+colnames(codes_df) <- c("site", "id", "code")
+codes_df
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plo
+```{r base, eval=FALSE}
+base_str = "No racism, sexism, homophobia, transphobia, xenophobia, or casteism"
+```
+Now that we have hteh ebase string. 
+Let's count the levenshtein differences
+```{r calc_distance, eval=FALSE}
+codes_df$dist = unlist(lapply(codes_df$code, function(x) { stringdist(base_str, x, method = "lv") }))
+codes_df
+```
+Let's add the time here
+```{r prepData, eval=FALSE}
+instances_df = read.csv("~/Desktop/blocked_db.csv")
+
+arc_df = merge(codes_df, instances_df, by.x="site", by.y="name")
+arc_df$dtime = as.Date(unlist(lapply(arc_df$added, function(w) { as.Date(w)} )) ,  format = "%d-%m-%Y" )
+#arc_df$odtime = as.Date(unlist(lapply(arc_df$added, function(w) { as.Date("2012-11-21")} )),  format = "%Y-%m-%d" )
+arc_df
+#write.csv(arc_df, "~/Desktop/levenshtein.csv")
+```
+Graph as timeline with arcs
+```{r graph}
+#set plot sixe
+
+q = ggplot(arc_df) +
+  scale_x_date(breaks =seq(as.Date("01-09-2016", format = "%d-%m-%Y"), 
+                           max(as.Date(arc_df$dtime, format = "%d-%m-%Y")), by="6 months"), 
+               date_labels = "%b %Y" ) + 
+  xlab("Date") +
+  ylab("Levenshtein Edit Distance") +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=1)) +
+  ylim(0, 0.1)
+for (i in 1:nrow(arc_df)) {
+  if (arc_df[i, 'dtime'] != "1999-01-01") {
+  q = q + geom_curve(aes(x = as.Date("01-09-2016",  format = "%d-%m-%Y"), y = 0, xend = dtime, yend =0, colour=dist), data = arc_df[i, ], curvature = -(arc_df[i, 'dist'])/100 )
+  }
+}
+
+q 
+ggsave("~/Desktop/edit.png", width = 30, height = 20, units = "cm")
+
+```
+Scatter plot of names and distances
+```{r scatter}
+arcs_df = arc_df[arc_df$dtime > as.Date("2016-01-01"), ]
+ggplot(arcs_df, aes(x=dtime, y=dist)) +
+  #geom_point() +
+  geom_text(aes(x=dtime, y=dist, label=site)) +
+  scale_x_date(breaks =seq(as.Date("01-01-2016", format = "%d-%m-%Y"), 
+                           max(as.Date(arcs_df$dtime, format = "%d-%m-%Y")), by="1 month"), 
+               date_labels = "%b %Y" ) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=1),
+        #axis.text.y=element_blank(),  #remove y axis labels
+        #axis.ticks.y=element_blank()  #remove y axis ticks
+        ) +
+  xlab("Date") +
+  ylab("Levenshtein Edit Distance")
+
+ggsave("~/Desktop/scatter.png", width = 30, height = 20, units = "cm")
+```
